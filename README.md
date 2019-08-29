@@ -34,12 +34,7 @@ All dependencies can be installed via:
 pip install -r requirements.txt
 ```
 
-NOTE: If you have MemoryError in the install try to use: 
-
-```bash
-pip install -r requirements.txt --no-cache-dir
-```
-Note that we currently only support PyTorch 1.1 (should work with 1.0)
+Note that we currently only support PyTorch 1.0.0
 
 ## Features
 
@@ -57,7 +52,7 @@ Note that we currently only support PyTorch 1.1 (should work with 1.0)
 - Inference time loss functions.
 - [Conv2Conv convolution model]
 - SRU "RNNs faster than CNN" paper
-- Mixed-precision training with [APEX](https://github.com/NVIDIA/apex), optimized on [Tensor Cores](https://developer.nvidia.com/tensor-cores)
+- FP16 training (mixed-precision with Apex)
 
 ## Quickstart
 
@@ -125,7 +120,7 @@ Click this button to open a Workspace on [FloydHub](https://www.floydhub.com/?ut
 
 ## Pretrained embeddings (e.g. GloVe)
 
-Please see the FAQ: [How to use GloVe pre-trained embeddings in OpenNMT-py](http://opennmt.net/OpenNMT-py/FAQ.html#how-do-i-use-pretrained-embeddings-e-g-glove)
+Go to tutorial: [How to use GloVe pre-trained embeddings in OpenNMT-py](http://forum.opennmt.net/t/how-to-use-glove-pre-trained-embeddings-in-opennmt-py/1011)
 
 ## Pretrained Models
 

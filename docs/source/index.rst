@@ -21,7 +21,6 @@ Contents
       Summarization.md
       im2text.md
       speech2text.md
-      vid2text.rst
 
 
 .. toctree::

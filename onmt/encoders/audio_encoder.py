@@ -51,10 +51,8 @@ class AudioEncoder(EncoderBase):
         enc_pooling = [int(p) for p in enc_pooling]
         self.enc_pooling = enc_pooling
 
-        if type(dropout) is not list:
-            dropout = [dropout]
-        if max(dropout) > 0:
-            self.dropout = nn.Dropout(dropout[0])
+        if dropout > 0:
+            self.dropout = nn.Dropout(dropout)
         else:
             self.dropout = None
         self.W = nn.Linear(enc_rnn_size, dec_rnn_size, bias=False)
@@ -64,7 +62,7 @@ class AudioEncoder(EncoderBase):
                         input_size=input_size,
                         hidden_size=enc_rnn_size_real,
                         num_layers=1,
-                        dropout=dropout[0],
+                        dropout=dropout,
                         bidirectional=brnn)
         self.pool_0 = nn.MaxPool1d(enc_pooling[0])
         for l in range(enc_layers - 1):
@@ -74,7 +72,7 @@ class AudioEncoder(EncoderBase):
                             input_size=enc_rnn_size,
                             hidden_size=enc_rnn_size_real,
                             num_layers=1,
-                            dropout=dropout[0],
+                            dropout=dropout,
                             bidirectional=brnn)
             setattr(self, 'rnn_%d' % (l + 1), rnn)
             setattr(self, 'pool_%d' % (l + 1),
@@ -139,8 +137,3 @@ class AudioEncoder(EncoderBase):
         else:
             encoder_final = state
         return encoder_final, memory_bank, orig_lengths.new_tensor(lengths)
-
-    def update_dropout(self, dropout):
-        self.dropout.p = dropout
-        for i in range(self.enc_layers - 1):
-            getattr(self, 'rnn_%d' % i).dropout = dropout

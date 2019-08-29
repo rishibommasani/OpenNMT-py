@@ -2,10 +2,10 @@ import torch
 import torch.nn as nn
 
 from onmt.utils.misc import aeq
-from onmt.utils.loss import NMTLossCompute
+from onmt.utils.loss import LossComputeBase
 
 
-def collapse_copy_scores(scores, batch, tgt_vocab, src_vocabs=None,
+def collapse_copy_scores(scores, batch, tgt_vocab, src_vocabs,
                          batch_dim=1, batch_offset=None):
     """
     Given scores from an expanded dictionary
@@ -16,14 +16,9 @@ def collapse_copy_scores(scores, batch, tgt_vocab, src_vocabs=None,
     for b in range(scores.size(batch_dim)):
         blank = []
         fill = []
-
-        if src_vocabs is None:
-            src_vocab = batch.src_ex_vocab[b]
-        else:
-            batch_id = batch_offset[b] if batch_offset is not None else b
-            index = batch.indices.data[batch_id]
-            src_vocab = src_vocabs[index]
-
+        batch_id = batch_offset[b] if batch_offset is not None else b
+        index = batch.indices.data[batch_id]
+        src_vocab = src_vocabs[index]
         for i in range(1, len(src_vocab)):
             sw = src_vocab.itos[i]
             ti = tgt_vocab.stoi[sw]
@@ -177,12 +172,10 @@ class CopyGeneratorLoss(nn.Module):
         return loss
 
 
-class CopyGeneratorLossCompute(NMTLossCompute):
+class CopyGeneratorLossCompute(LossComputeBase):
     """Copy Generator Loss Computation."""
-    def __init__(self, criterion, generator, tgt_vocab, normalize_by_length,
-                 lambda_coverage=0.0):
-        super(CopyGeneratorLossCompute, self).__init__(
-            criterion, generator, lambda_coverage=lambda_coverage)
+    def __init__(self, criterion, generator, tgt_vocab, normalize_by_length):
+        super(CopyGeneratorLossCompute, self).__init__(criterion, generator)
         self.tgt_vocab = tgt_vocab
         self.normalize_by_length = normalize_by_length
 
@@ -192,17 +185,14 @@ class CopyGeneratorLossCompute(NMTLossCompute):
             raise AssertionError("using -copy_attn you need to pass in "
                                  "-dynamic_dict during preprocess stage.")
 
-        shard_state = super(CopyGeneratorLossCompute, self)._make_shard_state(
-            batch, output, range_, attns)
-
-        shard_state.update({
+        return {
+            "output": output,
+            "target": batch.tgt[range_[0] + 1: range_[1], :, 0],
             "copy_attn": attns.get("copy"),
             "align": batch.alignment[range_[0] + 1: range_[1]]
-        })
-        return shard_state
+        }
 
-    def _compute_loss(self, batch, output, target, copy_attn, align,
-                      std_attn=None, coverage_attn=None):
+    def _compute_loss(self, batch, output, target, copy_attn, align):
         """Compute the loss.
 
         The args must match :func:`self._make_shard_state()`.
@@ -214,6 +204,7 @@ class CopyGeneratorLossCompute(NMTLossCompute):
             copy_attn: the copy attention value.
             align: the align info.
         """
+
         target = target.view(-1)
         align = align.view(-1)
         scores = self.generator(
@@ -221,16 +212,11 @@ class CopyGeneratorLossCompute(NMTLossCompute):
         )
         loss = self.criterion(scores, align, target)
 
-        if self.lambda_coverage != 0.0:
-            coverage_loss = self._compute_coverage_loss(std_attn,
-                                                        coverage_attn)
-            loss += coverage_loss
-
         # this block does not depend on the loss value computed above
         # and is used only for stats
         scores_data = collapse_copy_scores(
             self._unbottle(scores.clone(), batch.batch_size),
-            batch, self.tgt_vocab, None)
+            batch, self.tgt_vocab, batch.dataset.src_vocabs)
         scores_data = self._bottle(scores_data)
 
         # this block does not depend on the loss value computed above

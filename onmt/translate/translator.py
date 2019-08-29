@@ -42,25 +42,6 @@ def build_translator(opt, report_score=True, logger=None, out_file=None):
     return translator
 
 
-def max_tok_len(new, count, sofar):
-    """
-    In token batching scheme, the number of sequences is limited
-    such that the total number of src/tgt tokens (including padding)
-    in a batch <= batch_size
-    """
-    # Maintains the longest src and tgt length in the current batch
-    global max_src_in_batch  # this is a hack
-    # Reset current longest length at a new batch (count=1)
-    if count == 1:
-        max_src_in_batch = 0
-        # max_tgt_in_batch = 0
-    # Src: [<bos> w1 ... wN <eos>]
-    max_src_in_batch = max(max_src_in_batch, len(new.src[0]) + 2)
-    # Tgt: [w1 ... wM <eos>]
-    src_elements = count * max_src_in_batch
-    return src_elements
-
-
 class Translator(object):
     """Translate a batch of sentences with a saved model.
 
@@ -121,7 +102,6 @@ class Translator(object):
             block_ngram_repeat=0,
             ignore_when_blocking=frozenset(),
             replace_unk=False,
-            phrase_table="",
             data_type="text",
             verbose=False,
             report_bleu=False,
@@ -169,7 +149,6 @@ class Translator(object):
         if self.replace_unk and not self.model.decoder.attentional:
             raise ValueError(
                 "replace_unk requires an attentional decoder.")
-        self.phrase_table = phrase_table
         self.data_type = data_type
         self.verbose = verbose
         self.report_bleu = report_bleu
@@ -250,7 +229,6 @@ class Translator(object):
             block_ngram_repeat=opt.block_ngram_repeat,
             ignore_when_blocking=set(opt.ignore_when_blocking),
             replace_unk=opt.replace_unk,
-            phrase_table=opt.phrase_table,
             data_type=opt.data_type,
             verbose=opt.verbose,
             report_bleu=opt.report_bleu,
@@ -286,9 +264,7 @@ class Translator(object):
             tgt=None,
             src_dir=None,
             batch_size=None,
-            batch_type="sents",
-            attn_debug=False,
-            phrase_table=""):
+            attn_debug=False):
         """Translate content of ``src`` and get gold scores from ``tgt``.
 
         Args:
@@ -324,7 +300,6 @@ class Translator(object):
             dataset=data,
             device=self._dev,
             batch_size=batch_size,
-            batch_size_fn=max_tok_len if batch_type == "tokens" else None,
             train=False,
             sort=False,
             sort_within_batch=True,
@@ -332,8 +307,7 @@ class Translator(object):
         )
 
         xlation_builder = onmt.translate.TranslationBuilder(
-            data, self.fields, self.n_best, self.replace_unk, tgt,
-            self.phrase_table
+            data, self.fields, self.n_best, self.replace_unk, tgt
         )
 
         # Statistics
@@ -393,10 +367,7 @@ class Translator(object):
                             "{:*>10.7f} ", "{:>10.7f} ", max_index)
                         output += row_format.format(word, *row) + '\n'
                         row_format = "{:>10.10} " + "{:>10.7f} " * len(srcs)
-                    if self.logger:
-                        self.logger.info(output)
-                    else:
-                        os.write(1, output.encode('utf-8'))
+                    os.write(1, output.encode('utf-8'))
 
         end_time = time.time()
 
@@ -827,7 +798,7 @@ class Translator(object):
             memory_lengths=src_lengths, src_map=src_map)
 
         log_probs[:, :, self._tgt_pad_idx] = 0
-        gold = tgt[1:]
+        gold = tgt_in
         gold_scores = log_probs.gather(2, gold)
         gold_scores = gold_scores.sum(dim=0).view(-1)
 

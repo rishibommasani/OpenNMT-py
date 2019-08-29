@@ -29,7 +29,6 @@ def main(opt):
             tgt=tgt_shard,
             src_dir=opt.src_dir,
             batch_size=opt.batch_size,
-            batch_type=opt.batch_type,
             attn_debug=opt.attn_debug
             )
 
